@@ -1,5 +1,7 @@
 # Empório da Música — Customer Service Agent
 
+**Author:** Jackson Sales — AI Engineer candidate, Artefact (2026)
+
 Prototype of a text-message customer service agent for **Empório da Música**, a fictional musical
 instrument store in Campo Grande/MS. Built for the Artefact AI Engineer technical challenge.
 
@@ -310,8 +312,3 @@ I used **Claude** (Anthropic) throughout the project, in two ways:
   in code (D22, D23) rather than more prompt text. All transcripts in the repository are real,
   unedited outputs.
 
----
-
-## Author
-
-Jackson Sales — AI Engineer candidate, Artefact (2026).

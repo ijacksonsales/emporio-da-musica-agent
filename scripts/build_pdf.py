@@ -31,7 +31,7 @@ SOURCES = [
     "docs/DATA_AUDIT.md",
     "docs/SECURITY.md",
     "docs/RED_TEAM_RESULTS.md",
-    *sorted(str(p.relative_to(ROOT)) for p in (ROOT / "examples").glob("*.md")),
+    *sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "examples").glob("*.md")),
 ]
 
 BROWSERS = [
@@ -58,8 +58,13 @@ pre { background: #f4f4f4; padding: 8px; border-radius: 4px; overflow-x: hidden;
       white-space: pre-wrap; font-size: 8.5pt; }
 pre.mermaid { background: none; text-align: center; }
 blockquote { border-left: 3px solid #ccc; margin: 0.6em 0; padding: 0.2em 0.8em; color: #555; }
-.doc { page-break-before: always; }
-.doc:first-of-type { page-break-before: auto; }
+.doc { break-before: page; }
+/* Examples run on after each other instead of each starting a new, half-empty page. */
+.doc.continued { break-before: auto; border-top: 2px solid #e6007e; margin-top: 2em; padding-top: 0.5em; }
+/* Avoid orphaned headings and rows/items split across pages. */
+h1, h2, h3, h4 { break-after: avoid; }
+tr, li, blockquote, pre.mermaid { break-inside: avoid; }
+p { orphans: 3; widows: 3; }
 .cover { text-align: center; padding-top: 30vh; page-break-after: always; }
 .cover h1 { border: none; font-size: 26pt; }
 """
@@ -84,9 +89,14 @@ def render(markdown_text: str) -> str:
 
 def build_html() -> str:
     docs = []
+    previous = ""
     for source in SOURCES:
         body = render((ROOT / source).read_text(encoding="utf-8"))
-        docs.append(f'<section class="doc"><p><small>{source}</small></p>{body}</section>')
+        # Only the first example starts a new page; the others follow it.
+        continued = source.startswith("examples/") and previous.startswith("examples/")
+        css_class = "doc continued" if continued else "doc"
+        docs.append(f'<section class="{css_class}"><p><small>{source}</small></p>{body}</section>')
+        previous = source
     cover = (
         '<section class="cover"><h1>Empório da Música<br>Customer Service Agent</h1>'
         "<p>Artefact — AI Engineer technical challenge</p>"
