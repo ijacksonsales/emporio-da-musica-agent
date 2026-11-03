@@ -53,6 +53,7 @@ class AgentReply:
     text: str
     tool_trace: list[ToolResult] = field(default_factory=list)
     error: str | None = None
+    model: str | None = None  # model that produced the reply (differs if the fallback was used)
 
 
 FIRST_TURN_STAGE = (
@@ -206,7 +207,7 @@ class Agent:
         final = re.sub(r"\n{3,}", "\n\n", "".join(shown)).strip()
         if not final:
             return (yield from fail("empty response"))
-        return AgentReply(text=final, tool_trace=trace)
+        return AgentReply(text=final, tool_trace=trace, model=getattr(turn, "model", None))
 
     @staticmethod
     def _run(ctx: ToolContext, call: ToolCall) -> ToolResult:

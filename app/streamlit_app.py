@@ -50,6 +50,8 @@ with st.sidebar:
     st.divider()
     st.caption(f"Data de referência: {runtime.settings.reference_date:%d/%m/%Y}")
     st.caption(f"Modelo: {runtime.settings.llm_model}")
+    if runtime.settings.llm_fallback_model:
+        st.caption(f"Fallback (se a quota acabar): {runtime.settings.llm_fallback_model}")
     st.caption(f"Histórico guardado por {runtime.settings.history_ttl_days} dias")
 
 st.title("🎸 Empório da Música")
@@ -87,5 +89,7 @@ if prompt := st.chat_input("Digite sua mensagem"):
                 for item in reply.tool_trace:
                     st.markdown(f"**{item.call.name}** `{json.dumps(item.call.args, ensure_ascii=False)}`")
                     st.json(item.result, expanded=False)
+        if reply.model and reply.model != runtime.settings.llm_model:
+            st.caption(f"Respondido pelo modelo de fallback ({reply.model}): quota do principal esgotada.")
         if reply.error:
             st.caption(f"Erro técnico: {reply.error}")

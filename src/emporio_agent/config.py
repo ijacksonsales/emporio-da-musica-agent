@@ -18,6 +18,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 class Settings:
     llm_provider: str
     llm_model: str
+    llm_fallback_model: str | None
     gemini_api_key: str | None
     reference_date: date
     history_ttl_days: int
@@ -34,6 +35,7 @@ def get_settings() -> Settings:
     return Settings(
         llm_provider=os.getenv("LLM_PROVIDER", "gemini"),
         llm_model=os.getenv("LLM_MODEL", "gemini-3.5-flash-lite"),
+        llm_fallback_model=os.getenv("LLM_FALLBACK_MODEL", "gemini-3.1-flash-lite") or None,
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         reference_date=date.fromisoformat(os.getenv("REFERENCE_DATE", "2026-03-25")),
         history_ttl_days=int(os.getenv("HISTORY_TTL_DAYS", "7")),

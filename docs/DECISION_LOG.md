@@ -286,3 +286,15 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Rationale** | With an in-memory counter, restarting the app reset the lockout. The 24 h expiry keeps a customer who mistyped from being blocked forever. |
 | **Impact** | ✅ Lockout survives restarts; parameterized queries; covered by tests (restart, expiry, SQL payloads in the session id). |
 | **Status** | Accepted |
+
+## D26 — Fallback model when the main model's quota runs out
+
+| | |
+|---|---|
+| **Decided by** | **Jackson** (asked why it was left as a limitation) + Claude |
+| **Decision** | `LLM_FALLBACK_MODEL` (default `gemini-3.1-flash-lite`, same free key, separate quota). When the main model returns HTTP 429 before streaming any text, the turn switches to the fallback immediately; other transient errors (500/503) still retry with backoff. The reply records which model answered, and the UI says so when the fallback was used. |
+| **Why it was a limitation before** | Half of it is a real constraint: a paid tier is Jackson's call and would remove the "free to run" benefit. The fallback was not a time constraint — the provider layer (D04) already made it a small change; I had listed it as future work instead of doing it. |
+| **Alternatives** | Keep only retries with backoff (useless once a daily quota is exhausted); switch providers (needs another key for evaluators). |
+| **Verification** | Unit tests with a fake client (switch without waiting, both exhausted, no fallback configured). Live test: with the main model set to `gemini-3.1-pro-preview`, which has no free quota and really returns 429, the fallback answered correctly in 3.1 s, including the tool call. |
+| **Impact** | ✅ The agent keeps answering when one quota is exhausted. ⚠️ A switch in the middle of a turn (after tool calls) sends the main model's turn history to the fallback; it works with Gemini models but is not tested across providers. |
+| **Status** | Accepted |

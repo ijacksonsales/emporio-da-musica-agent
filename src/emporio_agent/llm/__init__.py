@@ -10,5 +10,9 @@ def create_provider(settings: Settings) -> LLMProvider:
     if settings.llm_provider == "gemini":
         from emporio_agent.llm.gemini import GeminiProvider
 
-        return GeminiProvider(api_key=settings.gemini_api_key, model=settings.llm_model)
+        return GeminiProvider(
+            api_key=settings.gemini_api_key,
+            model=settings.llm_model,
+            fallback_model=settings.llm_fallback_model,
+        )
     raise LLMError(f"Provedor não suportado: {settings.llm_provider}")
