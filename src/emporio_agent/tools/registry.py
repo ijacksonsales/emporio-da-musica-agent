@@ -124,10 +124,16 @@ _HANDLERS: dict[str, Callable[[ToolContext, dict], dict]] = {
         ctx.store, today=ctx.today, attempts=ctx.attempts, session_id=ctx.session_id, **a
     ),
     "get_store_policy": lambda ctx, a: get_store_policy(**a),
-    "escalate_to_human": lambda ctx, a: escalate_to_human(
-        ctx.handoffs, session_id=ctx.session_id, **a
-    ),
+    "escalate_to_human": lambda ctx, a: _escalate(ctx, a),
 }
+
+
+def _escalate(ctx: ToolContext, args: dict) -> dict:
+    result = escalate_to_human(ctx.handoffs, session_id=ctx.session_id, **args)
+    if args.get("reason") == "seguranca":
+        # Once the agent flags the conversation as suspicious, order lookups stay blocked.
+        ctx.attempts.lock(ctx.session_id)
+    return result
 
 
 def _allowed_args(name: str) -> set[str]:

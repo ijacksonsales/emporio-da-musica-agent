@@ -130,7 +130,28 @@ def test_grounding_guard_falls_back_if_model_insists(make_agent):
     agent, _ = make_agent([invented, invented])
     reply = agent.respond("s1", [], "quanto custa?")
     assert reply.text == FALLBACK_REPLY and "R$ 999" not in reply.text
-    assert reply.error == "ungrounded price after correction"
+    assert reply.error == "grounding check failed twice (price)"
+
+
+def test_promise_to_check_without_tool_call_is_retried(make_agent):
+    agent, provider = make_agent([
+        LLMResponse(text="Vou verificar aqui para te passar certinho."),  # stops without a tool
+        LLMResponse(tool_calls=[ToolCall("get_store_policy", {"topic": "hours"})]),
+        LLMResponse(text="Abrimos de segunda a sexta, das 09:00 às 18:00."),
+    ])
+    reply = agent.respond("s1", [Message("user", "oi"), Message("assistant", "oi!")], "horário?")
+    assert "Vou verificar" not in reply.text
+    assert reply.text.startswith("Abrimos")
+    assert provider.turn.corrections[1] is not None
+
+
+def test_promise_followed_by_tool_call_is_fine(make_agent):
+    agent, _ = make_agent([
+        LLMResponse(text="Só um instante!", tool_calls=[ToolCall("get_store_policy", {"topic": "hours"})]),
+        LLMResponse(text="Abrimos às 09:00."),
+    ])
+    text = agent.respond("s1", [], "horário?").text
+    assert text.startswith("Só um instante!") and text.endswith("Abrimos às 09:00.")
 
 
 def test_prices_after_a_data_tool_stream_normally(make_agent):

@@ -36,6 +36,10 @@ class AttemptTracker:
     def register_failure(self, session_id: str) -> None:
         self._failures[session_id] = self.failures(session_id) + 1
 
+    def lock(self, session_id: str) -> None:
+        """Block lookups immediately, e.g. after the conversation was flagged for security."""
+        self._failures[session_id] = max(self.failures(session_id), MAX_FAILED_ATTEMPTS)
+
     def locked(self, session_id: str) -> bool:
         return self.failures(session_id) >= MAX_FAILED_ATTEMPTS
 

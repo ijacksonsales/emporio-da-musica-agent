@@ -23,12 +23,24 @@ WEEKDAYS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "se
 # Tools whose results can back a price or order fact (D23).
 GROUNDING_TOOLS = {"search_products", "get_product_details", "get_order_status"}
 PRICE_PATTERN = re.compile(r"R\$\s?\d")
-GROUNDING_CORRECTION = (
-    "[Verificação interna do sistema, não é mensagem do cliente] Sua resposta anterior citou "
-    "preços sem consultar nenhuma ferramenta neste turno, e ela NÃO foi mostrada ao cliente. "
-    "Preços e produtos só podem vir das ferramentas. Chame a ferramenta adequada agora e "
-    "responda de novo ao cliente com base no resultado."
+PROMISE_PATTERN = re.compile(
+    r"\b(vou verificar|vou consultar|vou checar|vou conferir|deixa eu (ver|verificar|consultar)"
+    r"|só um (instante|momento)|um momento)\b",
+    re.IGNORECASE,
 )
+_CORRECTION_PREFIX = (
+    "[Verificação interna do sistema, não é mensagem do cliente] Sua resposta anterior NÃO "
+    "foi mostrada ao cliente. "
+)
+GROUNDING_CORRECTIONS = {
+    "price": _CORRECTION_PREFIX
+    + "Ela citou preços sem consultar nenhuma ferramenta neste turno. Preços e produtos só "
+    "podem vir das ferramentas. Chame a ferramenta adequada agora e responda de novo ao "
+    "cliente com base no resultado.",
+    "promise": _CORRECTION_PREFIX
+    + "Ela prometeu verificar algo, mas não chamou nenhuma ferramenta. Chame agora a "
+    "ferramenta necessária e responda ao cliente com a informação, sem notas sobre você.",
+}
 
 FALLBACK_REPLY = (
     "Desculpa, tive um problema técnico agora e não consegui concluir sua solicitação. "
@@ -164,16 +176,21 @@ class Agent:
                         held.append(chunk)
 
                 text = "".join(held)
+                violation = None
                 if held and PRICE_PATTERN.search(text):
+                    violation = "price"
+                elif held and not response.tool_calls and PROMISE_PATTERN.search(text):
+                    violation = "promise"  # said it would check, then stopped
+                if violation:
                     if response.tool_calls:
                         held = []  # drop the ungrounded preamble; the tools will ground the answer
                     elif not corrected:
                         corrected = True
-                        correction = GROUNDING_CORRECTION
+                        correction = GROUNDING_CORRECTIONS[violation]
                         results = None
                         continue
                     else:
-                        return (yield from fail("ungrounded price after correction"))
+                        return (yield from fail(f"grounding check failed twice ({violation})"))
                 if held:
                     yield emit(text)
 

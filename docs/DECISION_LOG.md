@@ -264,3 +264,14 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Rationale** | The most damaging failure for a store is quoting a wrong price (the manual calls it misleading advertising), so it should be enforced in code, like identity checks and price math. |
 | **Impact** | ✅ Invented prices cannot reach the customer; covered by tests. ⚠️ Only catches prices: an invented product name without a price would pass (listed in limitations). Replies before any data tool show up slightly later because they are checked first (the UI still paces them word by word). |
 | **Status** | Accepted |
+
+## D24 — Extend the guard to unkept promises; security handoff locks order lookups
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson |
+| **Decision** | (1) The grounding guard (D23) also rejects a reply that promises to check something ("vou verificar", "só um instante") and ends the turn without calling a tool; the model is told to call the tool and answer. (2) When the agent escalates with reason `seguranca`, order lookups are locked for that conversation in code. |
+| **What happened** | Red-team run after D23: in the SQL-payload attack Lia answered "vou verificar aqui..." and stopped, adding an odd meta note. In the enumeration attack, on the 3rd wrong attempt the model escalated for security *without* calling the lookup, so the failure counter stayed at 2 and a 4th attempt with correct data opened the order. |
+| **Rationale** | Both are consistency gaps between what the agent says and what the system does; enforcing them in code removes the dependency on the model's judgment. |
+| **Impact** | ✅ Red team back to 8/8 with the enumeration attack locked even with correct data; covered by unit tests. |
+| **Status** | Accepted |

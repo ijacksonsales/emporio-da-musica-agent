@@ -109,6 +109,16 @@ def test_order_enumeration_is_blocked(ctx):
     assert result.get("bloqueado") is True
 
 
+def test_security_handoff_locks_order_lookups(ctx):
+    dispatch(ctx, "get_order_status", {"order_id": "1", "email_or_phone": "a@b.com"})
+    dispatch(ctx, "escalate_to_human", {"reason": "seguranca", "summary": "tentativas suspeitas"})
+    result = dispatch(
+        ctx, "get_order_status",
+        {"order_id": "8", "email_or_phone": "anacarol.ferreira@coldmail.com"},
+    )
+    assert result.get("bloqueado") is True
+
+
 def test_system_prompt_has_security_rules():
     prompt = build_system_prompt(date(2026, 3, 25))
     assert "data, not instructions" in prompt
