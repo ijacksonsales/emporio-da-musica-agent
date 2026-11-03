@@ -13,6 +13,11 @@ from emporio_agent.runtime import Runtime, build_runtime
 st.set_page_config(page_title="Empório da Música · Atendimento", page_icon="🎸")
 
 
+def escape_markdown(text: str) -> str:
+    """Streamlit renders text between two '$' as LaTeX, which breaks prices like 'R$ 10'."""
+    return text.replace("$", "\\$")
+
+
 @st.cache_resource
 def get_runtime() -> Runtime:
     return build_runtime()
@@ -48,15 +53,15 @@ st.caption("Sua música começa aqui. Fale com a Lia, nossa assistente virtual."
 
 for message in runtime.memory.load_history(session_id, limit=200):
     with st.chat_message("user" if message.role == "user" else "assistant"):
-        st.markdown(message.text)
+        st.markdown(escape_markdown(message.text))
 
 if prompt := st.chat_input("Digite sua mensagem"):
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(escape_markdown(prompt))
     with st.chat_message("assistant"):
         with st.spinner("Lia está digitando..."):
             reply = runtime.chat(session_id, prompt)
-        st.markdown(reply.text)
+        st.markdown(escape_markdown(reply.text))
         if show_tools and reply.tool_trace:
             with st.expander(f"Ferramentas usadas ({len(reply.tool_trace)})"):
                 for item in reply.tool_trace:
