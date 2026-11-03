@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass
 
 from emporio_agent.agent import Agent, AgentReply
@@ -20,8 +21,17 @@ class Runtime:
 
     def chat(self, session_id: str, user_message: str) -> AgentReply:
         """Answer one message, persisting user and assistant text (not tool results)."""
+        stream = self.chat_stream(session_id, user_message)
+        while True:
+            try:
+                next(stream)
+            except StopIteration as done:
+                return done.value
+
+    def chat_stream(self, session_id: str, user_message: str) -> Generator[str, None, AgentReply]:
+        """Streaming variant of `chat`: yields text chunks, returns the final reply."""
         history = self.memory.load_history(session_id)
-        reply = self.agent.respond(session_id, history, user_message)
+        reply = yield from self.agent.respond_stream(session_id, history, user_message)
         if not reply.error:
             self.memory.append(session_id, "user", user_message)
             self.memory.append(session_id, "assistant", reply.text)

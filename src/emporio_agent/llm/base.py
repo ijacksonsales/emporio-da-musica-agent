@@ -6,6 +6,7 @@ means adding one module that implements `LLMProvider`.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -40,9 +41,15 @@ class LLMError(RuntimeError):
 
 
 class ChatTurn(Protocol):
-    """One user turn. The provider keeps the in-turn transcript (model calls, tool results)."""
+    """One user turn. The provider keeps the in-turn transcript (model calls, tool results).
 
-    def next(self, tool_results: list[ToolResult] | None = None) -> LLMResponse: ...
+    `stream` yields text chunks as the model generates them and returns the complete
+    LLMResponse (text + tool calls) as the generator's return value.
+    """
+
+    def stream(
+        self, tool_results: list[ToolResult] | None = None
+    ) -> Generator[str, None, LLMResponse]: ...
 
 
 class LLMProvider(Protocol):

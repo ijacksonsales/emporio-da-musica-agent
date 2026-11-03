@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Generator, Iterator
 from typing import Any
 
 from google import genai
@@ -27,22 +28,28 @@ class GeminiTurn(ChatTurn):
         self._config = config
         self._contents = contents
 
-    def _generate(self) -> types.GenerateContentResponse:
+    def _chunks(self) -> Iterator[types.GenerateContentResponse]:
+        """Stream response chunks, retrying transient errors only before the first chunk."""
         for attempt in range(MAX_RETRIES):
+            started = False
             try:
-                return self._client.models.generate_content(
+                for chunk in self._client.models.generate_content_stream(
                     model=self._model, contents=self._contents, config=self._config
-                )
+                ):
+                    started = True
+                    yield chunk
+                return
             except errors.APIError as exc:
-                if exc.code in RETRYABLE_STATUS and attempt < MAX_RETRIES - 1:
+                if not started and exc.code in RETRYABLE_STATUS and attempt < MAX_RETRIES - 1:
                     time.sleep(2**attempt * 2)
                     continue
                 if exc.code == 429:
                     raise LLMError("Limite de uso do modelo atingido (free tier).") from exc
                 raise LLMError(f"Falha ao chamar o modelo (HTTP {exc.code}).") from exc
-        raise LLMError("Falha ao chamar o modelo.")  # pragma: no cover
 
-    def next(self, tool_results: list[ToolResult] | None = None) -> LLMResponse:
+    def stream(
+        self, tool_results: list[ToolResult] | None = None
+    ) -> Generator[str, None, LLMResponse]:
         if tool_results:
             self._contents.append(
                 types.Content(
@@ -54,21 +61,26 @@ class GeminiTurn(ChatTurn):
                 )
             )
 
-        response = self._generate()
-        candidate = response.candidates[0] if response.candidates else None
-        if candidate is None or candidate.content is None:
-            return LLMResponse(text="")
+        parts: list[types.Part] = []
+        calls: list[ToolCall] = []
+        text: list[str] = []
+        for chunk in self._chunks():
+            candidate = chunk.candidates[0] if chunk.candidates else None
+            if candidate is None or candidate.content is None:
+                continue
+            for part in candidate.content.parts or []:
+                parts.append(part)
+                if part.function_call:
+                    fc = part.function_call
+                    calls.append(ToolCall(name=fc.name, args=dict(fc.args or {}), id=fc.id))
+                elif part.text and not part.thought:
+                    text.append(part.text)
+                    yield part.text
 
         # Keep the model turn as returned (including thought signatures) for the next call.
-        self._contents.append(candidate.content)
-        parts = candidate.content.parts or []
-        calls = [
-            ToolCall(name=p.function_call.name, args=dict(p.function_call.args or {}), id=p.function_call.id)
-            for p in parts
-            if p.function_call
-        ]
-        text = "".join(p.text for p in parts if p.text and not p.thought)
-        return LLMResponse(text=text.strip(), tool_calls=calls)
+        if parts:
+            self._contents.append(types.Content(role="model", parts=parts))
+        return LLMResponse(text="".join(text).strip(), tool_calls=calls)
 
 
 class GeminiProvider:

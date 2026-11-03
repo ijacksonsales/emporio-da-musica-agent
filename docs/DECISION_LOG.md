@@ -219,3 +219,25 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Result** | Second run: the agent recommended the two 7-string nylon guitars within budget with correct PIX and installment values, was honest about left-handed versions, and resolved "Martin D-28" directly while refusing the expired Easter discount. |
 | **Impact** | ✅ Shows an evaluation loop rather than one-shot prompting. ⚠️ LLM output varies between runs; the committed transcripts are real runs, not edited. |
 | **Status** | Done |
+
+## D20 — Stream replies word by word
+
+| | |
+|---|---|
+| **Decided by** | **Jackson** (requested after testing the UI) + Claude (implementation) |
+| **Decision** | Use Gemini's streaming API end to end: the provider yields text chunks as they are generated, the agent loop forwards them (tool calls still run between rounds) and the UI renders them with `st.write_stream`, pacing each chunk word by word (Gemini sends sentence-sized chunks). |
+| **Alternatives** | Fake typing effect over the finished reply (simpler, but the customer still waits for the whole answer before seeing anything). |
+| **Claude's contribution** | Proposed real streaming instead of a simulated effect, and kept a single code path: the non-streaming `respond()` just consumes the stream, and the stored reply is exactly the text the customer saw. Also fixed the "R$" bug Jackson found: Streamlit renders text between two `$` as LaTeX. |
+| **Impact** | ✅ First words appear in ~2 s even with tool calls; consistent history. ⚠️ If the model fails mid-answer, the partial text is followed by the fallback message (tested). |
+| **Status** | Accepted |
+
+## D21 — Welcome the customer and ask their name first
+
+| | |
+|---|---|
+| **Decided by** | **Jackson** |
+| **Decision** | On the first message, Lia welcomes the customer, introduces herself and asks the customer's name before answering (acknowledging the question so the customer doesn't feel ignored). If the name was already given, she answers right away; if the customer declines, she does not insist. Matches the manual's standard flow (§7.2: greet by name). |
+| **Rationale (Jackson)** | Jumping straight to information feels transactional and the customer may lose interest; a personal opening builds rapport. |
+| **Claude's contribution** | Made the first-turn signal deterministic (the code tells the prompt when history is empty instead of relying on the model). Live tests found two issues, both fixed: the agent greeted with "bem-vinda", guessing gender from nothing (now gender-neutral phrasing, never inferred from a name), and when the customer already gave a name it said "só um instante" and stopped without answering (cases now explicit; promising to check without doing it is forbidden). |
+| **Impact** | ✅ Warmer, personalized service. ⚠️ One extra turn when the customer doesn't introduce themselves. |
+| **Status** | Accepted |

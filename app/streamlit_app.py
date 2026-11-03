@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import time
 
 import streamlit as st
 
@@ -11,6 +13,8 @@ from emporio_agent.memory import is_valid_session_id, new_session_id
 from emporio_agent.runtime import Runtime, build_runtime
 
 st.set_page_config(page_title="Empório da Música · Atendimento", page_icon="🎸")
+
+WORD_DELAY_SECONDS = 0.025
 
 
 def escape_markdown(text: str) -> str:
@@ -59,9 +63,25 @@ if prompt := st.chat_input("Digite sua mensagem"):
     with st.chat_message("user"):
         st.markdown(escape_markdown(prompt))
     with st.chat_message("assistant"):
-        with st.spinner("Lia está digitando..."):
-            reply = runtime.chat(session_id, prompt)
-        st.markdown(escape_markdown(reply.text))
+        result: dict = {}
+
+        def stream_reply():
+            # Streamlit's write_stream consumes plain iterators, so capture the
+            # generator's return value (the final AgentReply) here.
+            chunks = runtime.chat_stream(session_id, prompt)
+            while True:
+                try:
+                    chunk = next(chunks)
+                except StopIteration as done:
+                    result["reply"] = done.value
+                    return
+                # Gemini streams sentence-sized chunks; pace them word by word on screen.
+                for word in re.findall(r"\S+\s*|\s+", escape_markdown(chunk)):
+                    yield word
+                    time.sleep(WORD_DELAY_SECONDS)
+
+        st.write_stream(stream_reply())
+        reply = result["reply"]
         if show_tools and reply.tool_trace:
             with st.expander(f"Ferramentas usadas ({len(reply.tool_trace)})"):
                 for item in reply.tool_trace:
