@@ -28,9 +28,10 @@ flowchart LR
 
 1. The UI keeps the session id in the URL, so a returning customer resumes the same conversation.
 2. `Runtime.chat` loads the last 20 user/assistant messages of the session (expired sessions are purged first).
-3. `Agent.respond` builds the system prompt (persona, rules, reference date and current time) and starts a turn with the provider, sending the tool declarations.
+3. `Agent.respond_stream` builds the system prompt (persona, rules, reference date, current time and whether this is the first message) and starts a turn with the provider, sending the tool declarations.
 4. While the model asks for tools, the registry validates arguments and runs them. Errors are returned to the model as data (`{"erro": ...}`), never as exceptions. A turn is capped at 6 tool rounds.
-5. The final text is shown to the customer. Only the user message and the final reply are persisted; tool results are discarded.
+5. Text is streamed to the UI as the model generates it. Until a data tool has run in the turn, text is held back for the **grounding guard**: a reply that quotes a price or promises to check something without a tool call is rejected and the model is corrected (D23, D24).
+6. Only the user message and the final reply (exactly the text shown) are persisted; tool results are discarded.
 
 ## Modules
 

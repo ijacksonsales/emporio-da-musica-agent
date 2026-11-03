@@ -12,9 +12,9 @@ hands complex cases to the human team.
 |---|---|
 | **Approach** | Hybrid: typed function calling over the CSV data + on-demand policy retrieval by topic |
 | **Model** | Google Gemini `gemini-3.5-flash-lite` (free tier) via the official `google-genai` SDK, behind a provider interface |
-| **Interface** | Streamlit chat UI |
+| **Interface** | Streamlit chat UI with streaming replies |
 | **Memory** | SQLite, 7-day retention, only user/assistant text |
-| **Tests** | 94 deterministic tests (pricing, tools, identity checks, memory, security) + live scenario and red-team scripts |
+| **Tests** | 104 deterministic tests (pricing, tools, identity checks, grounding guard, memory, security) + live scenario and red-team scripts |
 
 **Documentation**
 
@@ -118,22 +118,39 @@ Free tier (500 requests/day, 15/minute on my project), so anyone can run it at n
 native function calling. The provider layer (`llm/base.py`) means another model only needs one new
 module.
 
-### Prompt strategy (D18, D19)
+### Prompt strategy (D18, D19, D21)
 
 **Behavior in the prompt, knowledge through tools.** The system prompt (English, replies in
 Portuguese) only holds what applies to every message: persona and tone (manual §7.1), grounding
 rules, recommendation guidelines, scope, LGPD rules, handoff and security. The reference date and
 current time are injected each turn so the agent knows whether the store is open.
 
-The prompt was **iterated against real runs** (D19): the first scenario run exposed generic
-recommendations and a false "out of stock" claim, and the first red-team run exposed a promised
-handoff that was never registered. Both were fixed and re-verified.
+**Opening (D21).** On the first message Lia welcomes the customer and asks their name before
+answering (unless they already said it; if they decline, she moves on). The code tells the prompt
+when the history is empty, and the instruction sits at the end of the prompt with a fixed,
+gender-neutral template: small models follow the most recent, most concrete instruction best.
 
-### Price math in code (D09)
+The prompt was **iterated against real runs** (D19, D21): live runs exposed generic
+recommendations, a false "out of stock" claim, a promised handoff never registered, a gendered
+greeting and a "só um instante" that never came back. Each was fixed and re-verified.
+
+### Price math and grounding in code (D09, D23, D24)
 
 Promotions, the non-cumulative PIX discount and the tiered installment minimums are computed with
 `Decimal` in `pricing.py` and returned ready to the model. LLMs make arithmetic mistakes, and the
 manual itself warns that wrong prices can be misleading advertising.
+
+Prompt rules were not enough: in one run the model **invented two products with prices** without
+calling any tool. So a **grounding guard** now runs in code: text produced before any data tool in
+a turn is held back; if it quotes a price, or promises to check something and stops, it is never
+shown — the model is told to use the tools, and if it insists the customer gets a fallback message.
+Text after a data tool streams live.
+
+### Streaming UI (D20)
+
+Replies stream from Gemini through the agent loop to the UI (`st.write_stream`), paced word by
+word. The non-streaming API just consumes the same stream, and the stored reply is exactly the
+text the customer saw.
 
 ### Data treatment (D07, `docs/DATA_AUDIT.md`)
 
@@ -162,10 +179,12 @@ data. The TTL doubles as data minimization (LGPD).
 ### Security (D10, D13, `docs/SECURITY.md`)
 
 Order lookups need the order number **and** the e-mail/phone of that order's customer; failures
-look identical whether the order exists or not; 3 failures lock lookups for the conversation.
-Tools never return personal data. SQLite queries are parameterized. Tests attack all of this with
-SQL injection payloads, path traversal and enumeration, and the red-team script attacks the live
-model (8/8 checks passed, every transcript reviewed by hand).
+look identical whether the order exists or not; 3 failures — or a security escalation by the
+agent — lock lookups for the conversation. Tools never return personal data, not even the
+customer's name (D22). SQLite queries are parameterized. Tests attack all of this with SQL
+injection payloads, path traversal and enumeration, and the red-team script attacks the live model
+(8/8 checks passed, every transcript reviewed by hand; two earlier runs found real gaps, fixed in
+D24).
 
 ---
 
@@ -175,10 +194,10 @@ Generated with the real model by `scripts/run_scenarios.py` and reviewed by hand
 
 | File | Scenario | What it shows |
 |---|---|---|
-| [`01_choro_canhoto.md`](examples/01_choro_canhoto.md) | Left-handed beginner wants to play choro with R$ 1,500 | Domain reasoning (choro → 7-string nylon), budget filter, PIX/installments, honesty about missing data |
-| [`02_promocao_ativa_e_vencida.md`](examples/02_promocao_ativa_e_vencida.md) | Price of a product on sale, then an expired Easter discount | Original price + % + final price, PIX not cumulative, refusing an expired promotion |
+| [`01_choro_canhoto.md`](examples/01_choro_canhoto.md) | Left-handed beginner wants to play choro with R$ 1,500 | Name asked first; domain reasoning (choro → 7-string nylon), budget filter, PIX/installments, honesty about missing data |
+| [`02_promocao_ativa_e_vencida.md`](examples/02_promocao_ativa_e_vencida.md) | Price of a product on sale, then an expired Easter discount | Customer introduces herself (answered right away); original price + % + final price, PIX not cumulative, refusing an expired promotion |
 | [`03_pedido_atrasado.md`](examples/03_pedido_atrasado.md) | "My order hasn't arrived" | Identity check, delay detection, complaint registered with protocol |
-| [`04_arrependimento_fora_do_prazo.md`](examples/04_arrependimento_fora_do_prazo.md) | "I regret my purchase, can I return it?" | Combines order dates with the return policy; regret window expired, warranty still valid |
+| [`04_arrependimento_fora_do_prazo.md`](examples/04_arrependimento_fora_do_prazo.md) | "I regret my purchase, can I return it?" | Customer declines to give a name (respected); order dates + return policy; regret window expired, warranty still valid |
 | [`05_fora_do_escopo.md`](examples/05_fora_do_escopo.md) | Strings and amplifier, then a saxophone, then address/hours | Accessories redirected, empty category, store info from policy |
 
 ---
@@ -202,7 +221,7 @@ Generated with the real model by `scripts/run_scenarios.py` and reviewed by hand
 │   ├── prompts/system_prompt.md
 │   ├── runtime.py                 # wiring
 │   └── tools/                     # catalog, orders, policies, handoff, registry
-└── tests/                         # 94 tests
+└── tests/                         # 104 tests
 ```
 
 ---
@@ -228,7 +247,8 @@ The challenge asks to assume reasonable interpretations and document them:
 | Limitation | With more time |
 |---|---|
 | Free-tier quota (15 requests/minute) can interrupt bursts of use; the client retries with backoff | Paid tier or a fallback model through the provider layer |
-| LLM behavior varies between runs; examples and red team are evidence, not guarantees | An automated evaluation suite (LLM-as-judge + assertions on tool calls) in CI, run on every prompt change |
+| LLM behavior varies between runs; examples and red team are evidence, not guarantees. `gemini-3.5-flash-lite` is cheap but follows long prompts less reliably | An automated evaluation suite (LLM-as-judge + assertions on tool calls) in CI, run on every prompt change; compare against a larger model |
+| The grounding guard only catches prices and unkept promises; an invented product name *without* a price, or a policy answered from memory, would pass | Check product names in the reply against the catalog; require a policy tool call when policy keywords appear |
 | Failed-verification counter is in memory (resets on restart) | Persist it in SQLite/Redis with expiry |
 | Handoffs are only stored in SQLite | Integrate with the team's helpdesk/WhatsApp Business inbox |
 | Policy sections were transcribed by hand | Ingestion pipeline with review step when the manual changes; embeddings only if the manual grows a lot |
@@ -259,7 +279,9 @@ I used **Claude** (Anthropic) throughout the project, in two ways:
   - *Mine:* hybrid approach confirmed, Gemini, simple UI, 7-day memory, mapping the tables first,
     serving the policy through a tool instead of the system prompt (to save tokens), adding
     security tests, adding an unusual test question, the model choice after checking my quotas,
-    English deliverables and co-authored commits.
+    English deliverables and co-authored commits. After testing the UI myself I also asked for
+    streaming replies, found the broken "R$" rendering, and required the agent to welcome
+    customers and ask their name before answering.
   - *Suggested by Claude and accepted by me:* typed tools instead of text-to-SQL, price math in
     code, identity verification, no vector store, configurable reference date, hand-written agent
     loop.
@@ -270,9 +292,12 @@ I used **Claude** (Anthropic) throughout the project, in two ways:
 - **Incremental, honest history.** Each step was committed separately with Claude as
   `Co-Authored-By`, so the history shows the real order of work, including fixes.
 - **Verification over trust.** Tests caught two of the assistant's own mistakes (the catalog has
-  65 products, not 64; "Kalani" was matched as the brand "Kala"). Live runs were reviewed by hand,
-  which found three quality issues in the first scenario run and one in the red-team run that the
-  automatic checks did not catch (D19). All transcripts in the repository are real outputs.
+  65 products, not 64; "Kalani" was matched as the brand "Kala"). Every live run was reviewed by
+  hand, and that review — not the automatic checks — found the most important problems: generic
+  recommendations, a promised handoff never registered, a gendered greeting, a customer called by
+  a name they had declined to give, and invented products with prices. The last two led to fixes
+  in code (D22, D23) rather than more prompt text. All transcripts in the repository are real,
+  unedited outputs.
 
 ---
 
