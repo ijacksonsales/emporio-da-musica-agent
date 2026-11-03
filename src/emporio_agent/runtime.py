@@ -11,6 +11,7 @@ from emporio_agent.data.loader import load_store
 from emporio_agent.llm import create_provider
 from emporio_agent.memory import ConversationStore
 from emporio_agent.tools.handoff import HandoffStore
+from emporio_agent.tools.orders import PersistentAttemptTracker
 
 
 @dataclass
@@ -45,6 +46,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         store=load_store(settings.data_dir),
         today=settings.reference_date,
         handoffs=HandoffStore(settings.db_path),
+        attempts=PersistentAttemptTracker(settings.db_path),
     )
     memory = ConversationStore(settings.db_path, ttl_days=settings.history_ttl_days)
     return Runtime(settings, agent, memory)

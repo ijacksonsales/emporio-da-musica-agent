@@ -275,3 +275,14 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Rationale** | Both are consistency gaps between what the agent says and what the system does; enforcing them in code removes the dependency on the model's judgment. |
 | **Impact** | ✅ Red team back to 8/8 with the enumeration attack locked even with correct data; covered by unit tests. |
 | **Status** | Accepted |
+
+## D25 — Persist the failed-verification counter
+
+| | |
+|---|---|
+| **Decided by** | **Jackson** (asked why it was left as a limitation) + Claude |
+| **Decision** | `PersistentAttemptTracker` stores failed identity checks per session in SQLite. Failures expire 24 h after the last one. |
+| **Why it was a limitation before** | It was not a time constraint: the in-memory counter was simply the first version, and I (Claude) listed it as future work instead of doing it. Jackson questioned it, and it took one small class. |
+| **Rationale** | With an in-memory counter, restarting the app reset the lockout. The 24 h expiry keeps a customer who mistyped from being blocked forever. |
+| **Impact** | ✅ Lockout survives restarts; parameterized queries; covered by tests (restart, expiry, SQL payloads in the session id). |
+| **Status** | Accepted |

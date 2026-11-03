@@ -6,15 +6,23 @@ SQLite file used for conversations and handoffs. These tests attack it directly.
 
 import re
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
 from emporio_agent.agent import build_system_prompt
 from emporio_agent.memory import ConversationStore, new_session_id
 from emporio_agent.tools.handoff import HandoffStore
-from emporio_agent.tools.orders import AttemptTracker
+from emporio_agent.tools.orders import AttemptTracker, PersistentAttemptTracker, get_order_status
 from emporio_agent.tools.registry import ToolContext, dispatch
+
+
+class Clock:
+    def __init__(self):
+        self.now = datetime(2026, 3, 25, 12, tzinfo=timezone.utc)
+
+    def __call__(self):
+        return self.now
 
 SQL_PAYLOADS = [
     "'; DROP TABLE messages; --",
@@ -117,6 +125,29 @@ def test_security_handoff_locks_order_lookups(ctx):
         {"order_id": "8", "email_or_phone": "anacarol.ferreira@coldmail.com"},
     )
     assert result.get("bloqueado") is True
+
+
+def test_lockout_survives_a_restart_and_expires(store, db):
+    clock = Clock()
+    attacker = PersistentAttemptTracker(db, clock=clock)
+    for order_id in ("1", "2", "3"):
+        get_order_status(store, order_id, "a@b.com", date(2026, 3, 25), attacker, "sess-x")
+    assert attacker.locked("sess-x")
+
+    restarted = PersistentAttemptTracker(db, clock=clock)  # new process, same database
+    assert restarted.locked("sess-x")
+    assert not restarted.locked("other-session")
+
+    clock.now += timedelta(hours=25)  # failures expire 24 h after the last one
+    assert not restarted.locked("sess-x")
+
+
+@pytest.mark.parametrize("payload", SQL_PAYLOADS)
+def test_sql_injection_in_attempt_tracker_session_id(db, payload):
+    tracker = PersistentAttemptTracker(db)
+    tracker.register_failure(payload)
+    assert tracker.failures(payload) == 1
+    assert {"verification_failures"} <= tables(db)
 
 
 def test_system_prompt_has_security_rules():

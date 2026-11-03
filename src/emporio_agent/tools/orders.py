@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+import sqlite3
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 from emporio_agent.data.loader import Customer, Order, Store, digits
 from emporio_agent.pricing import format_brl, money
 from emporio_agent.tools import ToolError
 
 MAX_FAILED_ATTEMPTS = 3
+FAILURE_TTL = timedelta(hours=24)
 
 STATUS_LABELS = {
     "pending": "aguardando pagamento/processamento",
@@ -25,7 +30,10 @@ LEGAL_WARRANTY_DAYS = 90  # §8.1, from receipt
 
 
 class AttemptTracker:
-    """Counts failed identity checks per conversation to block order-id enumeration."""
+    """Counts failed identity checks per conversation to block order-id enumeration.
+
+    In-memory; used by tests and as the default. The app uses `PersistentAttemptTracker`.
+    """
 
     def __init__(self) -> None:
         self._failures: dict[str, int] = {}
@@ -33,15 +41,72 @@ class AttemptTracker:
     def failures(self, session_id: str) -> int:
         return self._failures.get(session_id, 0)
 
+    def _set_failures(self, session_id: str, count: int) -> None:
+        self._failures[session_id] = count
+
     def register_failure(self, session_id: str) -> None:
-        self._failures[session_id] = self.failures(session_id) + 1
+        self._set_failures(session_id, self.failures(session_id) + 1)
 
     def lock(self, session_id: str) -> None:
         """Block lookups immediately, e.g. after the conversation was flagged for security."""
-        self._failures[session_id] = max(self.failures(session_id), MAX_FAILED_ATTEMPTS)
+        self._set_failures(session_id, max(self.failures(session_id), MAX_FAILED_ATTEMPTS))
 
     def locked(self, session_id: str) -> bool:
         return self.failures(session_id) >= MAX_FAILED_ATTEMPTS
+
+
+class PersistentAttemptTracker(AttemptTracker):
+    """SQLite-backed tracker: a restart does not reset the counter (D25).
+
+    Failures expire `ttl` after the last one, so a legitimate customer who mistyped is not
+    blocked forever, while an attacker cannot reset the counter by restarting the app.
+    """
+
+    def __init__(
+        self,
+        db_path: Path,
+        ttl: timedelta = FAILURE_TTL,
+        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    ) -> None:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = db_path
+        self.ttl = ttl
+        self.clock = clock
+        with self._connect() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS verification_failures (
+                    session_id TEXT PRIMARY KEY,
+                    failures INTEGER NOT NULL,
+                    last_failure TEXT NOT NULL
+                )"""
+            )
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(self.db_path)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def failures(self, session_id: str) -> int:
+        cutoff = (self.clock() - self.ttl).isoformat()
+        with self._connect() as conn:
+            conn.execute("DELETE FROM verification_failures WHERE last_failure < ?", (cutoff,))
+            row = conn.execute(
+                "SELECT failures FROM verification_failures WHERE session_id = ?", (session_id,)
+            ).fetchone()
+        return row[0] if row else 0
+
+    def _set_failures(self, session_id: str, count: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO verification_failures (session_id, failures, last_failure) "
+                "VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                "failures = excluded.failures, last_failure = excluded.last_failure",
+                (session_id, count, self.clock().isoformat()),
+            )
 
 
 def _payment_label(method: str) -> str:
