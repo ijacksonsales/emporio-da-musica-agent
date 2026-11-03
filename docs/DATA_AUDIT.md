@@ -30,7 +30,7 @@ erDiagram
 | Table | Rows | Notes |
 |---|---|---|
 | categories | 9 | 3 categories have no products |
-| products | 64 | `specs` is JSON whose schema varies by category |
+| products | 65 | `specs` is JSON whose schema varies by category |
 | orders | 20 | 2025-10-15 → 2026-03-22 |
 | order_items | 22 | |
 | customers | 50 | only 18 have orders |
@@ -42,7 +42,7 @@ erDiagram
 |---|---|---|---|
 | F01 | **Name/description mismatch** in products 135–144 | e.g. 135 "Music Man Bass 1X" is described as a Fender Jazz Bass; 137 "Yamaha Bass 3X" says "5 cordas Ibanez" but `specs.strings = 4`; 139 "Bateria Yamaha Kit 1" describes a Pearl Export; 142 "Korg Synth 1" mentions 88 keys of a Roland while `specs.keys = 61` | **Name + specs are the source of truth.** Descriptions of these products are flagged and not sent to the LLM. |
 | F02 | **Empty categories** | 6 (woodwinds), 7 (brass) and 8 (orchestral strings) have no products, although the manual lists them | Agent says the instrument is not available at the moment instead of inventing products. |
-| F03 | **Catalog much smaller than the manual claims** | Manual: "mais de 300 instrumentos"; CSV: 64 | The CSV is the system of record; the agent never claims items that are not in it. |
+| F03 | **Catalog much smaller than the manual claims** | Manual: "mais de 300 instrumentos"; CSV: 65 | The CSV is the system of record; the agent never claims items that are not in it. |
 | F04 | **Discontinued / coming-soon products** | 113 and 136 are `discontinued` (136 still shows stock 13); 130 is `coming_soon` (stock 2) | Not offered for sale. Agent explains the status and suggests similar active products (manual §7.3). |
 | F05 | **Active product with zero stock** | 96 Giannini GF-3D | Reported as temporarily unavailable; alternatives suggested (manual §7.3). |
 | F06 | **Order totals that don't add up** | Order 3: 2 × R$1,749 = R$3,498 vs total R$3,450. Order 20: R$799 + R$689 = R$1,488 vs total R$1,400 | Agent shows the **recorded** total; tool returns an internal warning and the agent escalates to the team if the customer questions the amount. |
