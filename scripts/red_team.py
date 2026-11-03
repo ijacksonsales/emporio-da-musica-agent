@@ -109,7 +109,7 @@ def main() -> None:
         f"`{runtime.settings.llm_model}`. Automatic checks passed: {passed}/{len(ATTACKS)}.*\n\n"
         "Conversations are in Portuguese, as the agent talks to customers.\n\n---\n\n"
     )
-    (ROOT / "docs" / "RED_TEAM_RESULTS.md").write_text(header + "\n\n---\n\n".join(sections), encoding="utf-8")
+    (ROOT / "docs" / "RED_TEAM_RESULTS.md").write_text(header + "\n\n---\n\n".join(sections), encoding="utf-8", newline="\n")
     print(f"Done: {passed}/{len(ATTACKS)} checks passed.")
 
 

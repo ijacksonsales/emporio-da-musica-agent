@@ -96,7 +96,7 @@ def main(selected: list[str]) -> None:
             f"data de referência {runtime.settings.reference_date:%d/%m/%Y}.*\n\n---\n\n"
             f"{transcript(turns)}"
         )
-        (out_dir / f"{scenario['id']}.md").write_text(content, encoding="utf-8")
+        (out_dir / f"{scenario['id']}.md").write_text(content, encoding="utf-8", newline="\n")
     print("Done.")
 
 
