@@ -241,3 +241,26 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Claude's contribution** | Made the first-turn signal deterministic (the code tells the prompt when history is empty instead of relying on the model). Live tests found two issues, both fixed: the agent greeted with "bem-vinda", guessing gender from nothing (now gender-neutral phrasing, never inferred from a name), and when the customer already gave a name it said "só um instante" and stopped without answering (cases now explicit; promising to check without doing it is forbidden). |
 | **Impact** | ✅ Warmer, personalized service. ⚠️ One extra turn when the customer doesn't introduce themselves. |
 | **Status** | Accepted |
+
+## D22 — The order tool no longer returns the customer's name
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson |
+| **Decision** | `get_order_status` stops returning the customer's first name. Lia only uses the name the customer chose to share in the conversation. |
+| **What happened** | In a live run, a customer said "prefiro não dizer meu nome", gave the order number and phone, and Lia replied "Sem problemas, Letícia!" using the name from the order record. That ignores the customer's choice and feels invasive. |
+| **Rationale** | Data minimization (LGPD): the tool should not hand the model data it doesn't need. Enforced in code and covered by a test, not just by a prompt rule. |
+| **Impact** | ✅ Respects the customer's choice; less personal data flowing to the model. |
+| **Status** | Accepted |
+
+## D23 — Code-level grounding guard against invented prices
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson |
+| **Decision** | Until a data tool (`search_products`, `get_product_details`, `get_order_status`) has run in the current turn, the agent holds the model's text back. If that text quotes a price (`R$ <number>`), it is never shown: the model gets an internal correction and must call the tools. If it insists, the customer gets the fallback message instead of an invented price. Text after a data tool streams live. |
+| **What happened** | After adding the name-first opening (D21), a live run of the choro scenario produced two products that do not exist in the catalog, with prices, without calling any tool. The prompt already forbade this. |
+| **Alternatives** | More prompt rules (already failed once); a larger model (more quota, still probabilistic); forcing a tool call on every turn (breaks small talk and the name question). |
+| **Rationale** | The most damaging failure for a store is quoting a wrong price (the manual calls it misleading advertising), so it should be enforced in code, like identity checks and price math. |
+| **Impact** | ✅ Invented prices cannot reach the customer; covered by tests. ⚠️ Only catches prices: an invented product name without a price would pass (listed in limitations). Replies before any data tool show up slightly later because they are checked first (the UI still paces them word by word). |
+| **Status** | Accepted |

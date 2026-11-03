@@ -44,11 +44,12 @@ class ChatTurn(Protocol):
     """One user turn. The provider keeps the in-turn transcript (model calls, tool results).
 
     `stream` yields text chunks as the model generates them and returns the complete
-    LLMResponse (text + tool calls) as the generator's return value.
+    LLMResponse (text + tool calls) as the generator's return value. `correction` adds an
+    internal note from the agent (e.g. a failed grounding check) before generating.
     """
 
     def stream(
-        self, tool_results: list[ToolResult] | None = None
+        self, tool_results: list[ToolResult] | None = None, correction: str | None = None
     ) -> Generator[str, None, LLMResponse]: ...
 
 

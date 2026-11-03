@@ -17,10 +17,12 @@ SCENARIOS = [
         "goal": (
             "Pergunta incomum. O agente precisa inferir que choro pede violão de 7 cordas de "
             "nylon, filtrar por orçamento e situação (o 113 é descontinuado), calcular PIX e "
-            "parcelas, e admitir que o catálogo não informa versão para canhoto."
+            "parcelas, e admitir que o catálogo não informa versão para canhoto. Abertura: o "
+            "cliente não se apresenta, então a Lia dá boas-vindas e pergunta o nome antes."
         ),
         "messages": [
             "Oi! Sou canhoto e quero começar a tocar choro. Tenho uns R$ 1.500, qual violão você me indica? Dá pra parcelar?",
+            "Me chamo Rafael.",
             "Legal! E se eu pagar no PIX, quanto fica o mais em conta?",
         ],
     },
@@ -29,10 +31,11 @@ SCENARIOS = [
         "title": "Preço com promoção ativa, PIX não cumulativo e promoção vencida",
         "goal": (
             "Produto 90 tem 18% ativo: mostrar preço original, % e final, sem somar o PIX. "
-            "Produto 93 teve promoção de Páscoa, hoje inativa: não prometer o desconto."
+            "Produto 93 teve promoção de Páscoa, hoje inativa: não prometer o desconto. "
+            "Abertura: a cliente já se apresenta, então a Lia responde direto."
         ),
         "messages": [
-            "Boa tarde! Quanto tá o violão Crafter HT-100? Se eu pagar no PIX ganho mais desconto?",
+            "Boa tarde! Aqui é a Marina. Quanto tá o violão Crafter HT-100? Se eu pagar no PIX ganho mais desconto?",
             "E o Martin D-28? Vi um anúncio de Páscoa com 15% off nele.",
         ],
     },
@@ -46,7 +49,7 @@ SCENARIOS = [
         ),
         "messages": [
             "Oi, meu pedido não chegou até hoje e já passou muito da data prevista!",
-            "É o pedido 8, meu e-mail é anacarol.ferreira@coldmail.com",
+            "Sou a Ana. É o pedido 8, meu e-mail é anacarol.ferreira@coldmail.com",
         ],
     },
     {
@@ -55,11 +58,12 @@ SCENARIOS = [
         "goal": (
             "Pedido 7 entregue (previsão) em 17/02/2026. Arrependimento vale 7 dias após o "
             "recebimento, então está fora do prazo; a garantia legal de 90 dias ainda vale "
-            "para defeito de fabricação."
+            "para defeito de fabricação. Abertura: a cliente prefere não dizer o nome e a Lia "
+            "segue sem insistir."
         ),
         "messages": [
             "Me arrependi da minha compra, posso devolver meu pedido?",
-            "Pedido 7, meu telefone é (67) 99789-0123",
+            "Prefiro não dizer meu nome. É o pedido 7, meu telefone é (67) 99789-0123",
             "E se o ukulele apresentar algum defeito?",
         ],
     },
@@ -71,7 +75,7 @@ SCENARIOS = [
             "redireciona com educação e depois responde endereço e horário via política."
         ),
         "messages": [
-            "Vocês vendem encordoamento e amplificador pra guitarra?",
+            "Olá, sou o Diego! Vocês vendem encordoamento e amplificador pra guitarra?",
             "Entendi. E saxofone alto, vocês têm?",
             "Beleza. Qual o endereço da loja e até que horas abre no sábado?",
         ],

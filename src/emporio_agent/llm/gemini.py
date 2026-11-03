@@ -48,8 +48,12 @@ class GeminiTurn(ChatTurn):
                 raise LLMError(f"Falha ao chamar o modelo (HTTP {exc.code}).") from exc
 
     def stream(
-        self, tool_results: list[ToolResult] | None = None
+        self, tool_results: list[ToolResult] | None = None, correction: str | None = None
     ) -> Generator[str, None, LLMResponse]:
+        if correction:
+            self._contents.append(
+                types.Content(role="user", parts=[types.Part.from_text(text=correction)])
+            )
         if tool_results:
             self._contents.append(
                 types.Content(

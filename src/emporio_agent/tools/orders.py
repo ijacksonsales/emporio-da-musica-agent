@@ -69,10 +69,10 @@ def _window(start: date | None, days: int, today: date) -> dict | None:
 
 
 def _describe(store: Store, order: Order, today: date) -> dict:
-    customer = store.customers[order.customer_id]
+    # No customer name in the output: the agent only uses the name the customer chose to
+    # share in the conversation (data minimization, D22).
     result = {
         "verificado": True,
-        "cliente_primeiro_nome": customer.name.split()[0],
         "pedido": order.order_id,
         "data_pedido": order.order_date.isoformat(),
         "status": STATUS_LABELS.get(order.status, order.status),

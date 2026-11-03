@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -19,6 +20,16 @@ MAX_USER_MESSAGE_LENGTH = 2000
 STORE_TZ = ZoneInfo("America/Campo_Grande")
 WEEKDAYS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
 
+# Tools whose results can back a price or order fact (D23).
+GROUNDING_TOOLS = {"search_products", "get_product_details", "get_order_status"}
+PRICE_PATTERN = re.compile(r"R\$\s?\d")
+GROUNDING_CORRECTION = (
+    "[Verificação interna do sistema, não é mensagem do cliente] Sua resposta anterior citou "
+    "preços sem consultar nenhuma ferramenta neste turno, e ela NÃO foi mostrada ao cliente. "
+    "Preços e produtos só podem vir das ferramentas. Chame a ferramenta adequada agora e "
+    "responda de novo ao cliente com base no resultado."
+)
+
 FALLBACK_REPLY = (
     "Desculpa, tive um problema técnico agora e não consegui concluir sua solicitação. "
     "Pode tentar de novo em instantes? Se preferir, fale com a equipe pelo WhatsApp (67) 3321-4500."
@@ -33,19 +44,22 @@ class AgentReply:
 
 
 FIRST_TURN_STAGE = (
-    "This is the **first message** of the conversation. Start with a warm welcome to "
-    "Empório da Música and introduce yourself as Lia. Then follow exactly one case:\n"
-    "- **Case A: the customer did NOT say their name.** Ask for it before answering. If they "
-    "already asked something, acknowledge it (e.g. \"já te ajudo com isso!\") so they don't "
-    "feel ignored. In this case only, do not call tools and do not answer yet.\n"
-    "- **Case B: the customer said their name.** Do not ask for it. Welcome them by name AND "
-    "fully answer their question in this same message, calling the tools you need."
+    "This is the **first message** of the conversation. Did the customer say their name in it?\n"
+    "- **NO name** → your whole reply is ONLY the welcome and the name question, nothing "
+    "else: no tools, no product or policy information, no requests for order data. Use this "
+    "template, adapting only the middle sentence to what they asked:\n"
+    "  \"Oi! Boas-vindas à Empório da Música! 🎸 Eu sou a Lia, assistente virtual da loja. "
+    "Já te ajudo com [assunto]! Antes, como posso te chamar?\"\n"
+    "- **Name given** → start with \"Oi, [nome]! Boas-vindas à Empório da Música! Eu sou a "
+    "Lia.\" and then fully answer their question in this same message, calling the tools "
+    "you need."
 )
 ONGOING_STAGE = (
-    "- The conversation is already under way: do not welcome the customer again.\n"
-    "- If you asked for the name and the customer gave it, use it from now on and answer "
-    "what they had asked. If they declined or ignored the question, do not insist: go "
-    "straight to helping."
+    "The conversation is already under way: do not welcome the customer again.\n"
+    "- If you had asked for the name and the customer gave it, greet them by name and now "
+    "answer what they asked in their first message (look back at the history).\n"
+    "- If they declined or ignored the name question, say something like \"Sem problemas!\" "
+    "and go straight to helping, without using any name."
 )
 
 
@@ -116,6 +130,9 @@ class Agent:
             yield emit(("\n\n" if shown else "") + FALLBACK_REPLY)
             return AgentReply(text="".join(shown), tool_trace=trace, error=error)
 
+        def grounded() -> bool:
+            return any(t.call.name in GROUNDING_TOOLS for t in trace)
+
         try:
             turn = self.provider.begin_turn(
                 build_system_prompt(self.today, first_turn=not history),
@@ -124,16 +141,42 @@ class Agent:
                 TOOL_DECLARATIONS,
             )
             results: list[ToolResult] | None = None
-            for _ in range(MAX_TOOL_ROUNDS + 1):
+            correction: str | None = None
+            corrected = False
+            for _ in range(MAX_TOOL_ROUNDS + 2):
                 if shown and results:
                     yield emit("\n\n")  # separate text written before and after tool calls
-                stream = turn.stream(results)
+                stream = turn.stream(results, correction)
+                correction = None
+                # Grounding guard: until a data tool has run in this turn, hold the text back
+                # so a reply quoting prices from nowhere can be rejected before it is shown.
+                live = grounded()
+                held: list[str] = []
                 while True:
                     try:
-                        yield emit(next(stream))
+                        chunk = next(stream)
                     except StopIteration as done:
                         response = done.value
                         break
+                    if live:
+                        yield emit(chunk)
+                    else:
+                        held.append(chunk)
+
+                text = "".join(held)
+                if held and PRICE_PATTERN.search(text):
+                    if response.tool_calls:
+                        held = []  # drop the ungrounded preamble; the tools will ground the answer
+                    elif not corrected:
+                        corrected = True
+                        correction = GROUNDING_CORRECTION
+                        results = None
+                        continue
+                    else:
+                        return (yield from fail("ungrounded price after correction"))
+                if held:
+                    yield emit(text)
+
                 if not response.tool_calls:
                     break
                 results = [self._run(ctx, call) for call in response.tool_calls]
@@ -143,9 +186,10 @@ class Agent:
         except LLMError as exc:
             return (yield from fail(str(exc)))
 
-        if not "".join(shown).strip():
+        final = re.sub(r"\n{3,}", "\n\n", "".join(shown)).strip()
+        if not final:
             return (yield from fail("empty response"))
-        return AgentReply(text="".join(shown).strip(), tool_trace=trace)
+        return AgentReply(text=final, tool_trace=trace)
 
     @staticmethod
     def _run(ctx: ToolContext, call: ToolCall) -> ToolResult:

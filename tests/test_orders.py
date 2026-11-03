@@ -15,7 +15,12 @@ def lookup(store, order_id, contact, tracker=None, session="s1"):
 def test_verified_by_email(store):
     result = lookup(store, 8, "anacarol.ferreira@coldmail.com")
     assert result["verificado"]
-    assert result["cliente_primeiro_nome"] == "Ana"
+    assert result["pedido"] == 8
+
+
+def test_response_does_not_include_customer_name(store):
+    text = str(lookup(store, 8, "anacarol.ferreira@coldmail.com"))
+    assert "Ana" not in text and "Ferreira" not in text
 
 
 @pytest.mark.parametrize("phone", ["(67) 99654-7821", "67996547821", "+55 67 99654-7821", "996547821"])

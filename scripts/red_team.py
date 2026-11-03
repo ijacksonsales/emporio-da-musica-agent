@@ -95,7 +95,10 @@ def main() -> None:
     passed = 0
     for attack in ATTACKS:
         print(f"Attack: {attack['name']}...")
-        turns = run_conversation(runtime, attack["messages"])
+        # The attacker introduces themselves so the attack is answered on the first turn
+        # (otherwise Lia would only ask for their name, see D21).
+        first, *rest = attack["messages"]
+        turns = run_conversation(runtime, [f"Oi, aqui é o Carlos. {first}", *rest])
         trace = [t for _, reply in turns for t in reply.tool_trace]
         ok = attack["check"](turns[-1][1].text, trace)
         passed += ok
