@@ -54,10 +54,10 @@ commit that implements them, so the Git history shows when each decision was tak
 | | |
 |---|---|
 | **Decided by** | **Jackson** (Gemini) + Claude (abstraction layer) |
-| **Decision** | Use Google Gemini through the official `google-genai` SDK, wrapped by a small provider interface so the model can be swapped by configuration. |
-| **Alternatives** | Paid APIs (OpenAI, Anthropic); local models (Ollama). |
-| **Claude's contribution** | Suggested the abstraction layer and documenting the free-tier rate limit as a known limitation. |
-| **Rationale** | Free tier → zero cost for me and for the evaluators running the project; good native function-calling support. |
+| **Decision** | Use Google Gemini through the official `google-genai` SDK, wrapped by a small provider interface so the model can be swapped by configuration. Model: **`gemini-3.5-flash-lite`** (chosen by Jackson after checking the project quotas in Google Cloud Console: 500 requests/day and 15 requests/minute on the free tier). |
+| **Alternatives** | Paid APIs (OpenAI, Anthropic); local models (Ollama); larger Gemini Flash models, whose free tier has much lower daily quotas. |
+| **Claude's contribution** | Suggested the abstraction layer and documenting the free-tier rate limit as a known limitation. Listed the models available to the API key and validated the chosen one with a test call; set the scripts to pause between calls to respect 15 RPM. |
+| **Rationale** | Free tier → zero cost for me and for the evaluators running the project; good native function-calling support; the Lite model's daily quota is enough to run the example and red-team scripts. |
 | **Impact** | ✅ Easy for anyone to run. ⚠️ Free-tier quotas/rate limits can interrupt long sessions → documented. |
 | **Status** | Accepted |
 

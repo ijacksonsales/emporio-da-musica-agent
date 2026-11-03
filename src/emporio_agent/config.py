@@ -33,7 +33,7 @@ def _resolve(path: str) -> Path:
 def get_settings() -> Settings:
     return Settings(
         llm_provider=os.getenv("LLM_PROVIDER", "gemini"),
-        llm_model=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+        llm_model=os.getenv("LLM_MODEL", "gemini-3.5-flash-lite"),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         reference_date=date.fromisoformat(os.getenv("REFERENCE_DATE", "2026-03-25")),
         history_ttl_days=int(os.getenv("HISTORY_TTL_DAYS", "7")),

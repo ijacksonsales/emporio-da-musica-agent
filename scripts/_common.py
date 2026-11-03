@@ -16,7 +16,7 @@ from emporio_agent.config import get_settings  # noqa: E402
 from emporio_agent.memory import new_session_id  # noqa: E402
 from emporio_agent.runtime import Runtime, build_runtime  # noqa: E402
 
-PAUSE_BETWEEN_CALLS = 4  # seconds; keeps runs inside free-tier rate limits
+PAUSE_BETWEEN_CALLS = 6  # seconds; free tier allows 15 requests per minute
 
 
 def fresh_runtime(db_name: str) -> Runtime:
