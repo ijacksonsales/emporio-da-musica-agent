@@ -184,3 +184,15 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Decision** | Submit through the Google Form: a PDF generated from the README and documentation, named `Jackson Sales - AI Engineer – Full-Stack para Aplicações com IA Generativa - Vaga afirmativa para pessoas negras.pdf`, plus the public GitHub link. |
 | **Impact** | A script builds the PDF from the Markdown docs, so the PDF and the repository never diverge. |
 | **Status** | Accepted |
+
+## D17 — Policy sections transcribed by hand instead of parsed at runtime
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson |
+| **Decision** | Transcribe the manual once into one Markdown file per topic (`src/emporio_agent/policies/sections/`), reviewed against the PDF, with curation notes where the manual contradicts itself. |
+| **Alternatives** | Parse the PDF with `pypdf` at startup. |
+| **Claude's contribution** | Tried automatic extraction first: `pypdf` returned one word per line and flattened the tables, which would feed garbled text to the model. |
+| **Rationale** | The manual is small and static; a reviewed transcription is more reliable and diffable in Git. |
+| **Impact** | ✅ Clean, verifiable policy text; contradictions resolved explicitly. ⚠️ If the manual changes, the sections must be updated by hand (listed in limitations). |
+| **Status** | Accepted |
