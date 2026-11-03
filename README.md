@@ -14,7 +14,7 @@ hands complex cases to the human team.
 | **Model** | Google Gemini `gemini-3.5-flash-lite` (free tier) via the official `google-genai` SDK, behind a provider interface |
 | **Interface** | Streamlit chat UI with streaming replies |
 | **Memory** | SQLite, 7-day retention, only user/assistant text |
-| **Tests** | 104 deterministic tests (pricing, tools, identity checks, grounding guard, memory, security) + live scenario and red-team scripts |
+| **Tests** | 116 deterministic tests (pricing, tools, identity checks, grounding guard, memory, security) + live scenario and red-team scripts |
 
 **Documentation**
 
@@ -61,6 +61,7 @@ cp .env.example .env        # Windows: copy .env.example .env
 | `GEMINI_API_KEY` | — | Your Gemini API key (required) |
 | `LLM_PROVIDER` | `gemini` | Provider implementation |
 | `LLM_MODEL` | `gemini-3.5-flash-lite` | Any Gemini model with function calling |
+| `LLM_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Used when the main model hits its quota; empty disables it |
 | `REFERENCE_DATE` | `2026-03-25` | The agent's "today" (see [Assumptions](#5-assumptions)) |
 | `HISTORY_TTL_DAYS` | `7` | Conversation retention |
 | `DB_PATH` | `var/conversations.sqlite3` | SQLite file for history and handoffs |
@@ -116,7 +117,8 @@ without `get_store_policy`") and verified in the example runs.
 
 Free tier (500 requests/day, 15/minute on my project), so anyone can run it at no cost, with good
 native function calling. The provider layer (`llm/base.py`) means another model only needs one new
-module.
+module. When the main model hits its quota (HTTP 429), the turn switches immediately to
+`gemini-3.1-flash-lite`, which has its own free quota (D26); the UI says when that happened.
 
 ### Prompt strategy (D18, D19, D21)
 
@@ -180,7 +182,8 @@ data. The TTL doubles as data minimization (LGPD).
 
 Order lookups need the order number **and** the e-mail/phone of that order's customer; failures
 look identical whether the order exists or not; 3 failures — or a security escalation by the
-agent — lock lookups for the conversation. Tools never return personal data, not even the
+agent — lock lookups for the conversation, and the counter is persisted so a restart does not
+reset it (D25). Tools never return personal data, not even the
 customer's name (D22). SQLite queries are parameterized. Tests attack all of this with SQL
 injection payloads, path traversal and enumeration, and the red-team script attacks the live model
 (8/8 checks passed, every transcript reviewed by hand; two earlier runs found real gaps, fixed in
@@ -221,7 +224,7 @@ Generated with the real model by `scripts/run_scenarios.py` and reviewed by hand
 │   ├── prompts/system_prompt.md
 │   ├── runtime.py                 # wiring
 │   └── tools/                     # catalog, orders, policies, handoff, registry
-└── tests/                         # 104 tests
+└── tests/                         # 116 tests
 ```
 
 ---
@@ -242,21 +245,27 @@ The challenge asks to assume reasonable interpretations and document them:
 
 ---
 
-## 6. Known limitations and what I would do with more time
+## 6. Known limitations and next steps
 
-| Limitation | With more time |
-|---|---|
-| Free-tier quota (15 requests/minute) can interrupt bursts of use; the client retries with backoff | Paid tier or a fallback model through the provider layer |
-| LLM behavior varies between runs; examples and red team are evidence, not guarantees. `gemini-3.5-flash-lite` is cheap but follows long prompts less reliably | An automated evaluation suite (LLM-as-judge + assertions on tool calls) in CI, run on every prompt change; compare against a larger model |
-| The grounding guard only catches prices and unkept promises; an invented product name *without* a price, or a policy answered from memory, would pass | Check product names in the reply against the catalog; require a policy tool call when policy keywords appear |
-| Failed-verification counter is in memory (resets on restart) | Persist it in SQLite/Redis with expiry |
-| Handoffs are only stored in SQLite | Integrate with the team's helpdesk/WhatsApp Business inbox |
-| Policy sections were transcribed by hand | Ingestion pipeline with review step when the manual changes; embeddings only if the manual grows a lot |
-| Freight cost for other cities is not calculated (needs ZIP code, weight, size) | Integrate the Correios/Jadlog quote APIs |
-| Catalog has no left-handed / variant information | Add product variants to the data model |
-| No real customer authentication; anyone with order number + contact sees the order | One-time code sent to the registered phone/e-mail |
-| Streamlit is a demo channel | WhatsApp Business API webhook using the same `Runtime.chat` |
-| No observability beyond the tool panel | Structured logs/traces of each turn (tool calls, latency, tokens) |
+Each item says **why** it is not done — a cost decision, data or systems that don't exist in the
+challenge, or a scope choice for a prototype — so it is clear what is a real constraint.
+
+Two items that were on an earlier version of this list were **not** real constraints and were
+implemented after I questioned them: the failed-verification counter is now persisted in SQLite
+(D25), and a fallback model takes over when the main model's quota runs out (D26).
+
+| Limitation | Why it is not done | Next step |
+|---|---|---|
+| Both free-tier quotas (main + fallback) can run out under heavy use | **Cost decision:** a paid tier would remove the "free to run" benefit for evaluators | Paid tier in production; per-customer rate limiting |
+| LLM behavior varies between runs; examples and red team are evidence, not guarantees. `gemini-3.5-flash-lite` follows long prompts less reliably than larger models | **Scope:** a proper evaluation suite is a project of its own | LLM-as-judge + assertions on tool calls in CI on every prompt change; compare with a larger model |
+| The grounding guard catches prices, unkept promises and a missing first-message welcome. An invented product name *without* a price, or a policy answered from memory, would pass. The welcome is not enforced when the first answer needs a tool | **Real difficulty:** matching free text against the catalog produces false positives (Lia legitimately mentions brands like "Yamaha" in general terms) | Flag only brand + model names absent from the catalog; require a policy tool call when policy keywords appear |
+| Handoffs are only stored in SQLite | **Missing system:** the store has no helpdesk in the challenge | Integrate with the team's helpdesk / WhatsApp Business inbox |
+| Policy sections were transcribed by hand | **Scope:** the manual is small and static (D17) | Ingestion pipeline with a review step when the manual changes |
+| Freight cost for other cities is not calculated | **Missing data:** it needs ZIP code, weight and size, and carrier APIs | Integrate Correios/Jadlog quote APIs |
+| Catalog has no left-handed / variant information | **Missing data** in the CSVs | Add product variants to the data model |
+| No real customer authentication; order number + contact is enough to see an order | **Missing system:** no way to send codes in the challenge | One-time code sent to the registered phone/e-mail |
+| Streamlit is a demo channel | **Scope:** the challenge asks for a simple interface | WhatsApp Business API webhook calling the same `Runtime.chat_stream` |
+| No observability beyond the tool panel | **Scope** | Structured logs/traces per turn (tool calls, guard activations, model used, latency, tokens) |
 
 ---
 
@@ -281,7 +290,9 @@ I used **Claude** (Anthropic) throughout the project, in two ways:
     security tests, adding an unusual test question, the model choice after checking my quotas,
     English deliverables and co-authored commits. After testing the UI myself I also asked for
     streaming replies, found the broken "R$" rendering, and required the agent to welcome
-    customers and ask their name before answering.
+    customers and ask their name before answering. Reviewing the PDF, I noticed the examples were
+    framed in Portuguese, and I questioned two "limitations" that turned out to be quick to
+    implement (D25, D26).
   - *Suggested by Claude and accepted by me:* typed tools instead of text-to-SQL, price math in
     code, identity verification, no vector store, configurable reference date, hand-written agent
     loop.

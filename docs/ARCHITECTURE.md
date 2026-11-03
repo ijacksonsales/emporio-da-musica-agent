@@ -42,12 +42,12 @@ flowchart LR
 | `pricing.py` | Promotion, PIX and installment rules with `Decimal`. The LLM never does price math. |
 | `policies/` | Policy manual split into one Markdown file per topic + `PolicyTopic` enum. |
 | `tools/catalog.py` | Product search with filters and product details with alternatives. |
-| `tools/orders.py` | Order lookup with identity verification, delay detection, return windows and anti-enumeration lock. |
+| `tools/orders.py` | Order lookup with identity verification, delay detection, return windows and anti-enumeration lock (persisted in SQLite). |
 | `tools/policies.py` | Policy lookup by topic. |
 | `tools/handoff.py` | Registers cases for the human team and returns a protocol number. |
 | `tools/registry.py` | JSON Schema declarations (provider-agnostic) and defensive dispatch. |
 | `llm/base.py` | Provider interface (`LLMProvider`, `ChatTurn`, messages, tool calls). |
-| `llm/gemini.py` | Gemini implementation with the official `google-genai` SDK. |
+| `llm/gemini.py` | Gemini implementation with the official `google-genai` SDK: streaming, retries, fallback model on quota errors. |
 | `agent.py` | The function-calling loop and system prompt rendering. |
 | `memory.py` | SQLite conversation store with TTL. |
 | `runtime.py` | Wires everything together. |
