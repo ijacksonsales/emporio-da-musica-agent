@@ -196,3 +196,14 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Rationale** | The manual is small and static; a reviewed transcription is more reliable and diffable in Git. |
 | **Impact** | ✅ Clean, verifiable policy text; contradictions resolved explicitly. ⚠️ If the manual changes, the sections must be updated by hand (listed in limitations). |
 | **Status** | Accepted |
+
+## D18 — Prompt strategy: persona "Lia", rules in English, replies in Portuguese
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson (review pending on the persona name) |
+| **Decision** | The system prompt is written in English (consistent with the codebase and well followed by the model) and orders the agent to always reply in Brazilian Portuguese. The persona is "Lia", following the tone of manual §7.1. The prompt holds only behavior: persona, grounding rules ("never state prices/policies without a tool call"), scope, LGPD rules, handoff and security. The reference date and current time are injected on every turn. |
+| **Alternatives** | Prompt in Portuguese; no named persona; few-shot examples in the prompt (more tokens on every call). |
+| **Rationale** | Behavior in the prompt, knowledge through tools (D02). Explicit grounding rules mitigate the risk of the model skipping the policy tool. |
+| **Impact** | ✅ Short prompt, consistent persona. ⚠️ Adherence must be verified with scenario and red-team runs. |
+| **Status** | Accepted |
