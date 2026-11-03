@@ -145,6 +145,23 @@ def test_promise_to_check_without_tool_call_is_retried(make_agent):
     assert provider.turn.corrections[1] is not None
 
 
+def test_first_message_without_welcome_is_retried(make_agent):
+    agent, provider = make_agent([
+        LLMResponse(text="Como posso te chamar?"),
+        LLMResponse(text="Oi! Boas-vindas à Empório da Música! Eu sou a Lia. Como posso te chamar?"),
+    ])
+    reply = agent.respond("s1", [], "quero um violão")
+    assert reply.text.startswith("Oi! Boas-vindas")
+    assert provider.turn.corrections[1] is not None
+
+
+def test_welcome_is_not_required_after_the_first_message(make_agent):
+    agent, provider = make_agent([LLMResponse(text="Certo, Rafael!")])
+    reply = agent.respond("s1", [Message("user", "oi"), Message("assistant", "Boas-vindas!")], "Rafael")
+    assert reply.text == "Certo, Rafael!"
+    assert provider.turn.corrections == [None]
+
+
 def test_promise_followed_by_tool_call_is_fine(make_agent):
     agent, _ = make_agent([
         LLMResponse(text="Só um instante!", tool_calls=[ToolCall("get_store_policy", {"topic": "hours"})]),
@@ -173,7 +190,7 @@ def test_first_turn_asks_for_name_and_later_turns_do_not_welcome_again(make_agen
     assert "first message" in first and "como posso te chamar" in first
     assert "do not welcome the customer again" in later
 
-    agent, provider = make_agent([LLMResponse(text="Oi!"), LLMResponse(text="Certo!")])
+    agent, provider = make_agent([LLMResponse(text="Oi! Boas-vindas!"), LLMResponse(text="Certo!")])
     agent.respond("s1", [], "Quanto custa o GD20?")
     assert "first message" in provider.system_prompt
     agent.respond("s1", [Message("user", "oi"), Message("assistant", "Oi! Qual seu nome?")], "Ana")

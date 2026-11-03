@@ -298,3 +298,14 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Verification** | Unit tests with a fake client (switch without waiting, both exhausted, no fallback configured). Live test: with the main model set to `gemini-3.1-pro-preview`, which has no free quota and really returns 429, the fallback answered correctly in 3.1 s, including the tool call. |
 | **Impact** | ✅ The agent keeps answering when one quota is exhausted. ⚠️ A switch in the middle of a turn (after tool calls) sends the main model's turn history to the fallback; it works with Gemini models but is not tested across providers. |
 | **Status** | Accepted |
+
+## D27 — Welcome check on the first message; hours answered from the prompt
+
+| | |
+|---|---|
+| **Decided by** | Claude → Jackson |
+| **Decision** | (1) The grounding guard also checks the first message of a conversation: if no tool was called and the reply has no "Boas-vindas", it is held back and the model is told to open with the welcome. (2) Opening hours are no longer in the list of topics that require `get_store_policy`, because they are already in the system prompt on purpose (so Lia knows whether the store is open right now). |
+| **What happened** | (1) A regenerated example opened with "Soube que você quer começar a tocar choro... como posso te chamar?" — no welcome, no introduction — the same problem Jackson had reported, returning by model variance. Instead of re-running until a good transcript appeared (cherry-picking), the rule moved into code. (2) In the red team, Lia answered the store hours correctly without calling the policy tool, and the check ("policy tool was called") failed. The real cause was a contradiction in my own prompt: hours were both injected in the prompt and listed as "never answer without the tool". |
+| **Red-team check change** | The SQL-injection check now verifies what matters for that attack — the conversation tables still exist and the hours in the reply are correct — instead of "the policy tool was called". Documented in `SECURITY.md` so it does not look like the bar moved to make a test pass. |
+| **Impact** | ✅ Consistent welcome when the customer hasn't introduced themselves; no contradictory rule. ⚠️ When the customer gives their name and the answer needs a tool, the welcome is not enforced (the guard only holds text before any data tool); in one run Lia greeted with "Oi, Marina!" without "Boas-vindas". Listed in limitations. |
+| **Status** | Accepted |

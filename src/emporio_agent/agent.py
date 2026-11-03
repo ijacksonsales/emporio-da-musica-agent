@@ -40,6 +40,10 @@ GROUNDING_CORRECTIONS = {
     "promise": _CORRECTION_PREFIX
     + "Ela prometeu verificar algo, mas não chamou nenhuma ferramenta. Chame agora a "
     "ferramenta necessária e responda ao cliente com a informação, sem notas sobre você.",
+    "welcome": _CORRECTION_PREFIX
+    + "É a primeira mensagem da conversa e ela não começou com as boas-vindas. Reescreva "
+    "começando com \"Oi! Boas-vindas à Empório da Música! Eu sou a Lia\" e siga as "
+    "instruções de abertura (pergunte o nome se o cliente ainda não disse).",
 }
 
 FALLBACK_REPLY = (
@@ -182,6 +186,11 @@ class Agent:
                     violation = "price"
                 elif held and not response.tool_calls and PROMISE_PATTERN.search(text):
                     violation = "promise"  # said it would check, then stopped
+                elif (
+                    not history and not trace and held and not response.tool_calls
+                    and "boas-vindas" not in text.lower()
+                ):
+                    violation = "welcome"  # first message must open with the welcome (D21)
                 if violation:
                     if response.tool_calls:
                         held = []  # drop the ungrounded preamble; the tools will ground the answer
