@@ -154,12 +154,15 @@ def find_product(store: Store, product: str) -> Product | list[Product]:
 
     def score(p: Product) -> float:
         name = normalize(p.name)
-        overlap = sum(t in name for t in tokens) / len(tokens)
-        return overlap + difflib.SequenceMatcher(None, wanted, name).ratio() / 2
+        name_tokens = name.split()
+        # whole-token matches weigh more than substrings, so "D-28" prefers "D-28" over "D-28E"
+        exact = sum(t in name_tokens for t in tokens) / len(tokens)
+        partial = sum(t in name for t in tokens) / len(tokens)
+        return exact + partial / 2 + difflib.SequenceMatcher(None, wanted, name).ratio() / 2
 
     ranked = sorted(store.products.values(), key=score, reverse=True)
     best = score(ranked[0])
-    if best < 0.6:
+    if best < 0.9:
         return []
     close = [p for p in ranked if best - score(p) < 0.05]
     return close[0] if len(close) == 1 else close[:5]

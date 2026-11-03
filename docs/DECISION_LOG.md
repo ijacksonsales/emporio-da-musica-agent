@@ -207,3 +207,15 @@ commit that implements them, so the Git history shows when each decision was tak
 | **Rationale** | Behavior in the prompt, knowledge through tools (D02). Explicit grounding rules mitigate the risk of the model skipping the policy tool. |
 | **Impact** | ✅ Short prompt, consistent persona. ⚠️ Adherence must be verified with scenario and red-team runs. |
 | **Status** | Accepted |
+
+## D19 — Iterate on the prompt and tools using real scenario runs
+
+| | |
+|---|---|
+| **Decided by** | Jackson + Claude |
+| **Decision** | Treat the example conversations as an evaluation: run them against the live model, review every answer by hand, fix what is wrong and run again. Only reviewed runs are committed. |
+| **What the first run showed** | (1) Choro scenario: the agent did not search for 7-string guitars, ended up recommending the cheapest 6-string, and claimed "no left-handed models in stock" when the catalog simply has no such information. (2) "Martin D-28" was treated as ambiguous with "Martin D-28E" because fuzzy matching counted substrings. (3) Payment answers were generic instead of using the per-product numbers the tool already returns. |
+| **Fixes** | Fuzzy matching now weighs whole-token matches above substrings (and requires a higher minimum score). The system prompt gained a "Recommendations" section: translate needs into filters (choro → 7-string nylon), recommend specific products with prices and reasons, use the tool's payment numbers, and say "the catalog doesn't specify" for missing attributes instead of "out of stock". |
+| **Result** | Second run: the agent recommended the two 7-string nylon guitars within budget with correct PIX and installment values, was honest about left-handed versions, and resolved "Martin D-28" directly while refusing the expired Easter discount. |
+| **Impact** | ✅ Shows an evaluation loop rather than one-shot prompting. ⚠️ LLM output varies between runs; the committed transcripts are real runs, not edited. |
+| **Status** | Done |
