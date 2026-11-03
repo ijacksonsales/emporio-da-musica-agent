@@ -44,13 +44,15 @@ def format_tools(reply: AgentReply) -> str:
     calls = ", ".join(
         f"`{t.call.name}({json.dumps(t.call.args, ensure_ascii=False)})`" for t in reply.tool_trace
     )
-    return f"\n> 🔧 Ferramentas: {calls}\n"
+    return f"\n> 🔧 Tools called: {calls}\n"
 
 
-def transcript(turns: list[tuple[str, AgentReply]]) -> str:
+def transcript(turns: list[tuple[str, AgentReply]], glosses: list[str] | None = None) -> str:
+    """Markdown transcript. `glosses` are English translations of the customer messages."""
     lines = []
-    for message, reply in turns:
-        lines.append(f"**Cliente:** {message}\n")
+    for i, (message, reply) in enumerate(turns):
+        gloss = f"  \n*(EN: {glosses[i]})*" if glosses else ""
+        lines.append(f"**Customer:** {message}{gloss}\n")
         lines.append(format_tools(reply))
         lines.append(f"**Lia:** {reply.text}\n")
     return "\n".join(line for line in lines if line)
